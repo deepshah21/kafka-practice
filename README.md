@@ -12,7 +12,14 @@ http://kafka.apache.org/downloads
 Apache Kafka uses Zookeeper to store metadata about the Kafka cluster, as well as consumer client details
 
 ## kafka broker/ kafka server/ kafka :
+A single Kafka server is called a broker. The broker receives messages from producers,
+assigns offsets to them, and commits the messages to storage on disk. It also services
+consumers, responding to fetch requests for partitions and responding with the messages that have been committed to disk.
 
+Kafka brokers are designed to operate as part of a cluster. Within a cluster of brokers,
+one broker will also function as the cluster controller (elected automatically from the
+live members of the cluster). The controller is responsible for administrative operations, including assigning partitions to brokers and monitoring for broker failures. A partition is owned by a single broker in the cluster, and that broker is called the leader of the partition. A partition may be assigned to multiple brokers, which will result in the partition being replicated.
+This provides redundancy of messages in the partition, such that another broker can take over leadership if there is a broker failure. However, all consumers and producers operating on that partition must connect to the leader.
 
 ## topic : 
 a topic is similar to a folder in a filesystem, and the events are the files in that folder.
@@ -111,6 +118,7 @@ kafka used to hash the key and use the result to map the the message in specific
 
 ## kafka consumer:
 Consumer group:- is a multi-threaded or multi-machine consumption from Kafka topics.
+
 ### facts of consumers:
 Consumers can join a group by using the samegroup.id.
 The maximum parallelism of a group is that the number of consumers in the group ← no of partitions.
@@ -151,32 +159,60 @@ After deciding on the partition assignment, the consumer leader sends the list o
 
 ### code snipet for consumers
 
-    Properties props = new Properties();
-    props.put("bootstrap.servers", "localhost:9092");
-    props.put("group.id", group);
-    props.put("enable.auto.commit", "true");
-    props.put("auto.commit.interval.ms", "1000");
-    props.put("session.timeout.ms", "30000");
-    props.put("key.deserializer",          
-        "org.apache.kafka.common.serialization.StringDeserializer");
-    props.put("value.deserializer", 
-        "org.apache.kafka.common.serialization.StringDeserializer");
+
+	    Properties props = new Properties();
+	    props.put("bootstrap.servers", "localhost:9092");
+	    props.put("group.id", group);
+	    props.put("enable.auto.commit", "true");
+	    props.put("auto.commit.interval.ms", "1000");
+	    props.put("session.timeout.ms", "30000");
+	    props.put("key.deserializer","org.apache.kafka.common.serialization.StringDeserializer");
+	    props.put("value.deserializer","org.apache.kafka.common.serialization.StringDeserializer");
+	    
+	    KafkaConsumer<String, String> consumer = new KafkaConsumer<String, String>(props);
+
+	    consumer.subscribe(Arrays.asList(topic)); // topic is name in string
+
+	    while (true) {
+		ConsumerRecords<String, String> records = consumer.poll(100);
+		for (ConsumerRecord<String, String> record : records)
+		    System.out.printf("offset = %d, key = %s, value = %s\n", 
+		    record.offset(), record.key(), record.value());
+	    } 
+
+
+# hands on for simple java kafka demo
+
+    open terminal (1) for zookeeper
+    >cd kafka_2.13-2.6.2
+1. config zookeper properties (kafka_2.13-2.6.2/config/zookeeper.properties) file and start zookeeper
+    >bin/zookeeper-server-start.sh config/zookeeper.properties
+2. config kafka properties (kafka_2.13-2.6.2/config/zookeeper.properties) start kafka servers
+    here I have added 2 properties :- server1 and server2
+    which have unique id, logs dir, and port
+    > open another terminal (2) (for kafka server/kafka broker)
+    >bin/kafka-server-start.sh config/server1.properties 
+
+    > open another terminal (3) (for kafka server/kafka broker)
+    >bin/kafka-server-start.sh config/server2.properties 
+3. create topic
+    > open another terminal (4) (for kafka topic)
+    > bin/kafka-topics.sh --create --topic quickstart-events --bootstrap-server localhost:9092
+4. write event on topic (start producer)
+    > open another terminal (5) (for kafka producer)
+    > bin/kafka-console-producer.sh --topic quickstart-events --bootstrap-server localhost:9092
+    >This is my first event
+    >This is my second event
+
+    -- another way is run TestkafkaProducer.java
+5. read the events
+    > open another terminal (6) (for kafka consumer)
+    > bin/kafka-console-consumer.sh --topic quickstart-events --from-beginning --bootstrap-server localhost:9092
+        o/p
+        >This is my first event
+        >This is my second event
     
-    KafkaConsumer<String, String> consumer = new KafkaConsumer<String, String>(props);
-
-    consumer.subscribe(Arrays.asList(topic)); // topic is name in string
-
-    while (true) {
-        ConsumerRecords<String, String> records = consumer.poll(100);
-        for (ConsumerRecord<String, String> record : records)
-            System.out.printf("offset = %d, key = %s, value = %s\n", 
-            record.offset(), record.key(), record.value());
-    } 
-
-
-
-
-
+    --another way is run TestKafkaConsumer.java and TestKafkaConsumer2.java
 
 
 
@@ -208,4 +244,5 @@ After deciding on the partition assignment, the consumer leader sends the list o
 ### Tutorails
 - [Apache Kafka® Streams API : Confluent](https://www.youtube.com/channel/UCmZz-Gj3caLLzEWBtbYUXaA/playlists)
 - [Apache Kafka Tutorials : Prashant](https://www.youtube.com/playlist?list=PLkz1SCf5iB4enAR00Z46JwY9GGkaS2NON)
+
 
